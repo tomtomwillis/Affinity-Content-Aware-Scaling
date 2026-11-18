@@ -49,15 +49,16 @@ position, rotation and pixel density. The original is hidden, or deleted if you 
 | Width % / Height % | The same size as a percentage, linked to the pixel fields. |
 | Amount             | 100% = fully content-aware. Lower values blend in ordinary scaling, like Photoshop's Amount slider. |
 | Seam order         | *Auto* does the larger change first. Try *Width first* or *Height first* if a result looks off. |
+| Speed              | *Fast (recommended)* finds many seams per pass over the image, about 7–8× faster, and looked the same in testing. *Best quality* finds one seam at a time, the exact method. |
 | Keep original      | On: hide the original layer. Off: delete it. |
 | Live preview       | Show the low-res preview on the canvas while you edit. |
 | Preview quality    | Fast (300 px), Balanced (600 px) or Detailed (1000 px) on the long edge. The preview is an approximation, so the final image can differ slightly in fine detail. |
 
 ## Tips and limits
 
-- **Speed.** The full render takes a few seconds for a typical photo, for example about 6 s to
-  remove 400 columns from 1600×1067. Big images with large changes can take a minute or more.
-  Rendering starts while the dialog is open, so a short wait before clicking OK means less waiting afterwards.
+- **Speed.** In *Fast* mode, a 1200×675 photo resizes in about half a second, and removing 400 columns
+  from 1600×1067 takes under a second. *Best quality* takes about 3 s and 6 s for the same jobs.
+  Rendering starts while the dialog is open, so it's often done by the time you click OK.
 - **Flat colour.** Large areas of a single solid colour, like logos or vector-style art, count as
   "empty", so they get squeezed first. This happens in Photoshop too. Real photos, which have
   texture, behave much better.
@@ -71,8 +72,10 @@ position, rotation and pixel density. The original is hidden, or deleted if you 
 
 - `src/seamcarve.js`: forward-energy seam carving (Rubinstein, Shamir & Avidan, 2008) in plain
   JavaScript. Shrinking removes the cheapest connected seams. Enlarging finds the k cheapest seams
-  and duplicates them, in passes of at most 50% so that seams aren't reused. The work is a generator
-  that yields after every seam, so it can run in small slices while Affinity stays responsive.
+  and duplicates them, in passes of at most 50% so that seams aren't reused. In *Fast* mode, each pass
+  over the image traces back from the cheapest end points and keeps every seam that doesn't share a pixel
+  with one already chosen, taking up to 1% of the width at once. The work is a generator that yields after
+  every seam, so it can run in small slices while Affinity stays responsive.
 - `src/loading-overlay.js`: draws the LOADING placeholder (a small pixel font and a progress bar)
   into an image, because scripts can't draw text on the canvas directly.
 - `src/affinity-main.js`: the Affinity side. It reads the layer's pixels, builds the dialog and live

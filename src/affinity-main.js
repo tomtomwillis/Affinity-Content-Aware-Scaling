@@ -23,6 +23,10 @@ const { UnitType } = require('/units.js');
 const TITLE = 'Content-Aware Scale';
 const PREVIEW_SIZES = [300, 600, 1000];   // long-edge pixels for Fast / Balanced / Detailed
 const MAX_SCALE = 4;                      // largest allowed size, as a multiple of the original
+// Seams taken per energy pass, as a fraction of the width (see seamcarve.js).
+// 0 = exact one-seam-at-a-time; 0.01 is ~8× faster and looks the same in testing.
+const SPEED_BATCH = [0.01, 0];            // index = dialog "Speed" choice: Fast, Best quality
+const PREVIEW_BATCH = 0.01;
 const SLICE_MS = 40;                      // background work per timer tick (keeps the dialog responsive)
 const PLACEHOLDER_MS = 250;               // how often the LOADING placeholder is redrawn
 const PLACEHOLDER_SIZE = 400;             // long edge of the placeholder when there's no preview to dim
@@ -179,6 +183,7 @@ function buildDialog(w, h) {
     dlg.amount = opts.addUnitValueEditor('Amount', UnitType.Percentage, UnitType.Percentage, 100, 0, 100)
         .setShowPopupSlider(true).setPrecision(0);
     dlg.order = opts.addComboBox('Seam order', ['Auto', 'Width first', 'Height first'], 0);
+    dlg.speed = opts.addComboBox('Speed', ['Fast (recommended)', 'Best quality (slow)'], 0);
     dlg.keep = opts.addCheckBox('Keep original (hidden)', true);
 
     const pv = col.addGroup('Preview');
@@ -203,6 +208,7 @@ function readSettings(dlg) {
         h: Math.max(1, Math.round(dlg.height.value)),
         amount: dlg.amount.value / 100,
         order: ['auto', 'widthFirst', 'heightFirst'][dlg.order.selectedIndex ?? 0] ?? 'auto',
+        batch: SPEED_BATCH[dlg.speed.selectedIndex ?? 0] ?? SPEED_BATCH[0],
         keep: !!dlg.keep.value,
         preview: !!dlg.preview.value,
         quality: dlg.quality.selectedIndex ?? 0,
@@ -211,7 +217,7 @@ function readSettings(dlg) {
 
 // The settings that determine the full-quality result.
 function renderKey(o) {
-    return JSON.stringify([o.w, o.h, o.amount, o.order]);
+    return JSON.stringify([o.w, o.h, o.amount, o.order, o.batch]);
 }
 
 // ---------- main ----------
@@ -283,7 +289,7 @@ function main() {
         cancelJob();
         const me = job = {
             key, progress: 0, result: null, timer: null,
-            steps: SeamCarve.carveSteps(src.data, src.w, src.h, o.w, o.h, { amount: o.amount, order: o.order }),
+            steps: SeamCarve.carveSteps(src.data, src.w, src.h, o.w, o.h, { amount: o.amount, order: o.order, batch: o.batch }),
         };
         showProgress(0, `Generating full-quality image…  ${progressBar(0)}`);
 
@@ -317,7 +323,7 @@ function main() {
         if (!job || job.key !== renderKey(o)) {
             cancelJob();
             job = { key: renderKey(o), progress: 0, result: null, timer: null,
-                    steps: SeamCarve.carveSteps(src.data, src.w, src.h, o.w, o.h, { amount: o.amount, order: o.order }) };
+                    steps: SeamCarve.carveSteps(src.data, src.w, src.h, o.w, o.h, { amount: o.amount, order: o.order, batch: o.batch }) };
         }
         if (job.timer) { try { job.timer.cancel(); } catch (e) { /* ignore */ } }
         job.timer = null;
@@ -369,13 +375,14 @@ function main() {
             lastShown = null;
             doc.clearPreviews();
         } else {
-            const key = JSON.stringify([renderKey(o), o.quality]);
+            const key = JSON.stringify([o.w, o.h, o.amount, o.order, o.quality]);
             if (key !== lastPreviewKey) {
                 lastPreviewKey = key;
                 const t0 = Date.now();
                 const p = proxy(o.quality);
                 const pw = Math.max(1, Math.round(o.w * p.s)), ph = Math.max(1, Math.round(o.h * p.s));
-                const small = SeamCarve.carve(p.data, p.width, p.height, pw, ph, { amount: o.amount, order: o.order });
+                const small = SeamCarve.carve(p.data, p.width, p.height, pw, ph,
+                    { amount: o.amount, order: o.order, batch: PREVIEW_BATCH });
                 const shown = composePreview(small, p.width, p.height);
                 // Full-resolution size that the (possibly padded) preview bitmap stands for.
                 const coverW = Math.max(o.w, src.w), coverH = Math.max(o.h, src.h);

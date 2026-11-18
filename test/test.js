@@ -99,9 +99,9 @@ const cases = [
 ];
 
 console.log('Seam carving tests');
-for (const [name, nw, nh] of cases) {
+for (const [name, nw, nh, batch] of cases.flatMap(c => [[...c, 0], [c[0] + '-fast', c[1], c[2], 0.01]])) {
     const t0 = Date.now();
-    const r = carve(img, W, H, nw, nh);
+    const r = carve(img, W, H, nw, nh, { batch });
     const ms = Date.now() - t0;
     writePNG(path.join(OUT, `${name}.png`), r.data, r.width, r.height);
     test(`${name} → ${nw}×${nh} (${ms} ms)`, () => {
@@ -177,6 +177,13 @@ test('LOADING placeholder renders over a dimmed preview and on plain grey', () =
     assert.ok(white > 100 && blue > 100, `white ${white}, blue ${blue}`);
 });
 
+test('fast (batched) mode removes exactly the requested amount', () => {
+    for (const [nw, nh] of [[333, 270], [480, 151], [701, 270], [999, 300]]) {
+        const r = carve(img, W, H, nw, nh, { batch: 0.02 });
+        assert.strictEqual(r.width, nw); assert.strictEqual(r.height, nh);
+    }
+});
+
 test('carveSteps can be resumed: background progress + finish = same result', () => {
     const it = require('../src/seamcarve.js').carveSteps(img, W, H, 360, 220);
     for (let i = 0; i < 50; i++) it.next();          // partial work "in the dialog"
@@ -191,7 +198,11 @@ test('carveSteps can be resumed: background progress + finish = same result', ()
     const big = scene(PW, PH);
     const t0 = Date.now();
     carve(big, PW, PH, 1200, PH);
-    console.log(`  perf ${PW}×${PH} → 1200×${PH}: ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    const exact = (Date.now() - t0) / 1000;
+    const t1 = Date.now();
+    carve(big, PW, PH, 1200, PH, { batch: 0.01 });
+    const fast = (Date.now() - t1) / 1000;
+    console.log(`  perf ${PW}×${PH} → 1200×${PH}: best quality ${exact.toFixed(1)} s, fast ${fast.toFixed(1)} s`);
 }
 
 console.log(failures ? `\n${failures} failing` : '\nall passed');
