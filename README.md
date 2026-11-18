@@ -34,6 +34,8 @@ To update, paste the new `dist/ContentAwareScale.js` over the old script and sav
 5. Click **OK**.
    - If the dialog already says *Done*, the new layer is placed straight away.
    - If not, a **LOADING nn%** placeholder shows on the canvas until the image is ready.
+     As a failsafe, the placeholder hides itself if progress stops going up for 3 seconds, or if it
+     sits at 100% for more than a second. Rendering carries on, and the image is still placed when it's ready.
 
 **Cancel** leaves your layer untouched.
 
@@ -65,8 +67,11 @@ position, rotation and pixel density. The original is hidden, or deleted if you 
 - **Protecting areas.** The algorithm supports a protect mask, but the dialog doesn't offer
   one yet.
 - **Rotated or skewed layers** are placed using their bounding box.
-- While the LOADING placeholder is showing, don't move or delete the original layer. The new
-  layer is placed relative to it.
+- If the original layer is moved or deleted while the LOADING placeholder is showing, the new
+  layer is still placed where the original was, at the top of the layer stack, and you'll get a message.
+- **Leftover layers.** If an earlier run left a "Content-Aware Scale loading" or "preview" layer
+  behind, the script offers to delete it the next time it runs. If Affinity won't delete it, it's
+  hidden instead. Saving, closing and reopening the document should clear it.
 
 ## How it works
 
